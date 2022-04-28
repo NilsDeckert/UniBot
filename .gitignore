@@ -1,9 +1,0 @@
-.gitignore
-config.ini
-.env
-.idea/
-cogs/admin/__pycache__/
-
-cogs/listeners/__pycache__/
-
-*.pyc
