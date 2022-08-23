@@ -27,3 +27,8 @@ class Config:
         # return [817865198676738109, 831428691870744576]
         # return [817865198676738109]
         return None
+
+    @classmethod
+    def get_sentry_dsn(cls):
+        load_dotenv()
+        return os.getenv('SENTRY_DSN')

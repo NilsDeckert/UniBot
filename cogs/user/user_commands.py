@@ -1,8 +1,7 @@
 import codecs
 from configparser import ConfigParser
 
-from discord.ext.commands import Cog
-from discord_slash import SlashContext, cog_ext
+import interactions
 
 from main import UniBot
 from util.config import Config
@@ -20,12 +19,15 @@ ROLE = 8
 MENTIONABLE = 9
 
 
-class User(Cog):
+class User(interactions.Extension):
     def __init__(self, bot: UniBot):
-        self.bot = bot
+        self.client = bot
         self.config = ConfigParser(delimiters="=")
         self.config.read_file(codecs.open(Config.get_file(), "r", "utf8"))
 
-    @cog_ext.cog_slash(name="ping", guild_ids=guild_ids, description="Pong!")
-    async def ping(self, ctx: SlashContext):
+    @interactions.extension_command(
+        name="ping",
+        description="Pong!"
+    )
+    async def ping(self, ctx: interactions.CommandContext):
         await ctx.send("Pong!")

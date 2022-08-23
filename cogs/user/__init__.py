@@ -4,5 +4,7 @@ from .user_commands import User
 
 
 def setup(bot: UniBot):
-    bot.add_cog(User(bot))
-    bot.add_cog(TUB(bot))
+    User(bot)
+    TUB(bot)
+
+

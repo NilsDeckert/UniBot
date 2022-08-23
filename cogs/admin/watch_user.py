@@ -3,9 +3,8 @@ import json
 from configparser import ConfigParser
 
 import discord
+import interactions
 from discord.ext.commands import Cog, has_guild_permissions
-from discord_slash import SlashContext, cog_ext
-from discord_slash.utils.manage_commands import create_option
 
 from util.config import Config
 
@@ -23,23 +22,23 @@ ROLE = 8
 MENTIONABLE = 9
 
 
-class WatchUser(Cog):
+class WatchUser(interactions.Extension):
     def __init__(self, bot: UniBot):
         self.bot = bot
         self.config = ConfigParser(delimiters="=")
         self.config.read_file(codecs.open(Config.get_file(), "r", "utf8"))
 
-    @has_guild_permissions(manage_roles=True)
-    @cog_ext.cog_slash(name="watch", guild_ids=guild_ids, description="Add user to watch list",
-                       options=[
-                           create_option(
-                               name="user",
-                               description="User",
-                               option_type=USER,
-                               required=True
-                           )
-                       ])
-    async def watch(self, ctx: SlashContext, user: discord.User):
+    @interactions.extension_command(name="watch", description="Add user to watch list",
+                                    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+                                    options=[
+                                        interactions.Option(
+                                            name="user",
+                                            description="User",
+                                            type=interactions.OptionType.USER,
+                                            required=True
+                                        )
+                                    ])
+    async def watch(self, ctx: interactions.CommandContext, user: discord.User):
         guild_id = str(ctx.guild_id)
         if not self.config.has_section(guild_id):
             self.config.add_section(guild_id)
@@ -48,14 +47,14 @@ class WatchUser(Cog):
         watched_dict = json.loads(self.config.get(guild_id, "watched_dict", fallback="{}"))
 
         if user.id in watched_users:
-            await ctx.send(f"{user.mention} is already on the watch list", hidden=True)
+            await ctx.send(f"{user.mention} is already on the watch list", ephemeral=True)
         else:
 
             category_id = self.config.get(guild_id, "watch_category", fallback=None)
             valid_category = category_id and discord.utils.get(ctx.guild.categories, id=int(category_id))
             if not valid_category:
                 await ctx.send("Please set a category for the new channels first. Use /watch_category.",
-                               hidden=True)
+                               ephemeral=True)
             else:
                 watch_category = discord.utils.get(ctx.guild.categories, id=int(category_id))
                 new_channel = await ctx.guild.create_text_channel(name=f"{user.name}", category=watch_category)
@@ -75,32 +74,32 @@ class WatchUser(Cog):
                     "It will be deleted automatically when the user gets removed from the watch list.")
 
                 await ctx.send(f"Successfully added {user.mention} to watch list, see {new_channel.mention}",
-                               hidden=True)
+                               ephemeral=True)
 
-    @has_guild_permissions(manage_roles=True)
-    @cog_ext.cog_slash(name="unwatch", guild_ids=guild_ids, description="Remove user from watch list",
-                       options=[
-                           create_option(
-                               name="user",
-                               description="User",
-                               option_type=USER,
-                               required=True
-                           ),
-                           create_option(
-                               name="delete",
-                               description="Delete channel?",
-                               option_type=BOOLEAN,
-                               required=True
-                           )
-                       ])
-    async def unwatch(self, ctx: SlashContext, user: discord.User, delete: bool):
+    @interactions.extension_command(name="unwatch", description="Remove user from watch list",
+                                    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+                                    options=[
+                                        interactions.Option(
+                                            name="user",
+                                            description="User",
+                                            type=interactions.OptionType.USER,
+                                            required=True
+                                        ),
+                                        interactions.Option(
+                                            name="delete",
+                                            description="Delete channel?",
+                                            type=interactions.OptionType.BOOLEAN,
+                                            required=True
+                                        )
+                                    ])
+    async def unwatch(self, ctx: interactions.CommandContext, user: discord.User, delete: bool):
         guild_id = str(ctx.guild_id)
 
         watched_users = json.loads(self.config.get(guild_id, "watched_users", fallback="[]"))
         watched_dict = json.loads(self.config.get(guild_id, "watched_dict", fallback="{}"))
 
         if user.id not in watched_users:
-            await ctx.send(f"{user.mention} is not on the watch list", hidden=True)
+            await ctx.send(f"{user.mention} is not on the watch list", ephemeral=True)
         else:
 
             watched_users.remove(user.id)
@@ -118,20 +117,20 @@ class WatchUser(Cog):
             with open(Config.get_file(), 'w', encoding="utf-8") as f:
                 self.config.write(f)
 
-            await ctx.send(f"Successfully removed {user.mention} from watch list", hidden=True)
+            await ctx.send(f"Successfully removed {user.mention} from watch list", ephemeral=True)
 
-    @has_guild_permissions(manage_roles=True)
-    @cog_ext.cog_slash(name="watched", guild_ids=guild_ids, description="Gets users that are on watch list")
-    async def watched(self, ctx: SlashContext):
+    @interactions.extension_command(name="watched", description="Gets users that are on watch list",
+                                    default_member_permissions=interactions.Permissions.ADMINISTRATOR, )
+    async def watched(self, ctx: interactions.CommandContext):
         guild_id = str(ctx.guild_id)
         if not self.config.has_section(guild_id) or not self.config.has_option(guild_id, "watched_users"):
-            await ctx.send("No watched users set", hidden=True)
+            await ctx.send("No watched users set", ephemeral=True)
         else:
             watched_users = json.loads(self.config.get(guild_id, "watched_users", fallback="[]"))
             watched_dict = json.loads(self.config.get(guild_id, "watched_dict", fallback="{}"))
 
             if len(watched_users) == 0:
-                await ctx.send("No watched users", hidden=True)
+                await ctx.send("No watched users", ephemeral=True)
             else:
                 embed = discord.Embed(title="Watched users")
                 too_long = len(watched_users) > 25
@@ -155,19 +154,19 @@ class WatchUser(Cog):
 
                 if too_long:
                     embed.add_field(name="...", value="...", inline=False)
-                await ctx.send(embed=embed, hidden=True)
+                await ctx.send(embed=embed, ephemeral=True)
 
-    @has_guild_permissions(manage_roles=True)
-    @cog_ext.cog_slash(name="watch_category", guild_ids=guild_ids, description="Set category for watch list",
-                       options=[
-                           create_option(
-                               name="category",
-                               description="Category",
-                               option_type=discord.CategoryChannel,
-                               required=True
-                           )
-                       ])
-    async def watch_category(self, ctx: SlashContext, category: discord.CategoryChannel):
+    @interactions.extension_command(name="watch_category", description="Set category for watch list",
+                                    default_member_permissions=interactions.Permissions.ADMINISTRATOR,
+                                    options=[
+                                        interactions.Option(
+                                            name="category",
+                                            description="Category",
+                                            type=interactions.OptionType.CHANNEL,
+                                            required=True
+                                        )
+                                    ])
+    async def watch_category(self, ctx: interactions.CommandContext, category: discord.CategoryChannel):
         guild_id = str(ctx.guild_id)
         if not self.config.has_section(guild_id):
             self.config.add_section(guild_id)
@@ -177,4 +176,4 @@ class WatchUser(Cog):
         with open(Config.get_file(), 'w', encoding="utf-8") as f:
             self.config.write(f)
 
-        await ctx.send(f"Successfully set watch category to {category.mention}", hidden=True)
+        await ctx.send(f"Successfully set watch category to {category.mention}", ephemeral=True)
