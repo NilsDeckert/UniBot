@@ -3,22 +3,13 @@ import logging
 from configparser import ConfigParser
 
 import interactions
+from interactions.client.get import get
 from discord.ext.commands import Cog, has_guild_permissions, errors
 
 from main import UniBot
 from util.config import Config
 
 guild_ids = Config.get_guild_ids()
-
-#   --- Option Types ---
-
-STRING = 3
-INTEGER = 4
-BOOLEAN = 5
-USER = 6
-CHANNEL = 7
-ROLE = 8
-MENTIONABLE = 9
 
 
 class Roles(interactions.Extension):
@@ -49,36 +40,34 @@ class Roles(interactions.Extension):
                                             required=True
                                         )
                                     ])
-    async def add_reaction_role(self, ctx: interactions.CommandContext, message_link: str, role: str, emoji: str):
+    async def add_reaction_role(self, ctx: interactions.CommandContext, message_link: str, role: interactions.Role,
+                                emoji: str):
         guild_id = str(ctx.guild_id)
 
         if not self.config.has_section(guild_id):
             self.config.add_section(guild_id)
 
-        if "https://discord.com/channels/" in message_link:
-
-            # Get message object from link
-            link = message_link.split('/')
-            channel_id = int(link[5])
-            msg_id = int(link[6])
-            channel = self.bot.get_channel(channel_id)
-            msg = await channel.fetch_message(msg_id)
-
-            self.config.set(guild_id, f"{msg_id}_{emoji}", str(role))
-            try:
-                with open(Config.get_file(), 'w', encoding='utf-8') as f:
-                    self.config.write(f)
-                    logging.info(f"Added reaction role '{role}' to message {msg_id}")
-
-                await msg.add_reaction(emoji)
-                await ctx.send(f"Successfully added role \'{role}\'", ephemeral=True)
-            except errors.HTTPException:
-                self.config.remove_option(guild_id, str(emoji))
-                with open(Config.get_file(), 'w', encoding='utf-8') as f:
-                    self.config.write(f)
-                await ctx.send("Error: Make sure you only use standard emojis or emojis from this server", ephemeral=True)
-        else:
+        if "https://discord.com/channels/" not in message_link:
             await ctx.send("Error: Make sure you've got the right link", ephemeral=True)
+            return
+
+        guild_id, msg, msg_id = await self.msg_from_link(message_link)
+
+        self.config.set(str(guild_id), f"{msg_id}_{emoji}", str(role.name))
+        try:
+            with open(Config.get_file(), 'w', encoding='utf-8') as f:
+                self.config.write(f)
+                logging.info(f"Added reaction role '{role.name}' to message {msg_id}")
+
+            await msg.create_reaction(emoji)
+            await ctx.send(f"Successfully added role \'{role.name}\'", ephemeral=True)
+
+        except errors.HTTPException:
+            self.config.remove_option(guild_id, str(emoji))
+            with open(Config.get_file(), 'w', encoding='utf-8') as f:
+                self.config.write(f)
+            await ctx.send("Error: Make sure you only use standard emojis or emojis from this server",
+                           ephemeral=True)
 
     @interactions.extension_command(name="remove_reaction_role",
                                     default_member_permissions=interactions.Permissions.ADMINISTRATOR,
@@ -98,26 +87,28 @@ class Roles(interactions.Extension):
                                         )
                                     ])
     async def remove_reaction_role(self, ctx: interactions.CommandContext, message_link: str, emoji: str):
-        guild_id = str(ctx.guild_id)
-
-        if "https://discord.com/channels/" in message_link:
-
-            # Get message object from link
-            link = message_link.split('/')
-            channel_id = int(link[5])
-            msg_id = int(link[6])
-            channel = self.bot.get_channel(channel_id)
-            msg = await channel.fetch_message(msg_id)
-
-            if not self.config.has_option(guild_id, f"{msg_id}_{emoji}"):
-                await ctx.send(f"Could not find \'{emoji}\' role for this message", ephemeral=True)
-                return
-
-            self.config.remove_option(guild_id, f"{msg_id}_{emoji}")
-            with open(Config.get_file(), 'w', encoding='utf-8') as f:
-                self.config.write(f)
-
-            await msg.clear_reaction(emoji)
-            await ctx.send(f"Successfully removed \'{emoji}\' role", ephemeral=True)
-        else:
+        if "https://discord.com/channels/" not in message_link:
             await ctx.send("Error: Make sure you've got the right link", ephemeral=True)
+            return
+
+        guild_id, msg, msg_id = await self.msg_from_link(message_link)
+
+        if not self.config.has_option(str(guild_id), f"{msg_id}_{emoji}"):
+            await ctx.send(f"Could not find \'{emoji}\' role for this message", ephemeral=True)
+            return
+
+        self.config.remove_option(str(guild_id), f"{msg_id}_{emoji}")
+        with open(Config.get_file(), 'w', encoding='utf-8') as f:
+            self.config.write(f)
+
+        await msg.remove_all_reactions_of(emoji)
+        await ctx.send(f"Successfully removed \'{emoji}\' role", ephemeral=True)
+
+    async def msg_from_link(self, link) -> interactions.Message:
+        assert "https://discord.com/channels/" in link, "Invalid link"
+        link = link.split('/')
+        guild_id, channel_id, msg_id = [int(x) for x in link[4:7]]
+
+        channel = await get(self.bot, interactions.Channel, object_id=channel_id, parent_id=guild_id)
+        msg = await channel.get_message(msg_id)
+        return guild_id, msg, msg_id
