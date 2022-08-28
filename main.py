@@ -39,13 +39,6 @@ class UniBot(interactions.Client):
     def __init__(self, token):
         self.aiohttp_session: Optional[aiohttp.ClientSession] = None
         intents = interactions.Intents.ALL
-        # intents = discord.Intents.default()
-        # intents.members = True
-        # intents.reactions = True
-        # intents.messages = True
-        # intents.emojis = True
-        # intents.bans = True
-        #super().__init__(command_prefix="$", help_command=None, intents=intents)
         super().__init__(token=token, intents=intents)
 
     async def on_ready(self):
@@ -56,36 +49,21 @@ class UniBot(interactions.Client):
         self.aiohttp_session = aiohttp.ClientSession()
 
     def load_cogs(self) -> None:
+        logging.info("loading extensions...")
         self.load(name="cogs.user", package="cogs.user")
         self.load(name="cogs.listeners", package="cogs.listeners")
         self.load(name="cogs.admin", package="cogs.admin")
-        # self.load_extension("cogs.user")
-        # self.load_extension("cogs.listeners")
-        # self.load_extension("cogs.admin")
-
-        logging.info("loading extensions finished")
+        logging.info("loaded extensions")
 
     def run_bot(self):
         logging.info("starting up...")
         self.load_cogs()
-        #self.loop.create_task(self.register_aiohttp_session())
         self._loop.create_task(self.register_aiohttp_session())
-        self.register_aiohttp_session()
         super().start()
 
 
 def main():
     bot = UniBot(TOKEN)
-    #slash = SlashCommand(bot, sync_commands=True, sync_on_cog_reload=True, override_type=True)
-
-    @bot.command(
-        name="newtest",
-        description="test",
-        scope="951885887128629318"
-    )
-    async def newtest(ctx: interactions.CommandContext):
-        await ctx.send("hi there")
-
     bot.run_bot()
 
 
